@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace TypeLang\Type\Template;
 
 use TypeLang\Type\Identifier;
-use TypeLang\Type\Node;
+use TypeLang\Type\Template\TemplateBoundNode\BoundKind;
 use TypeLang\Type\TypeNode;
 
 /**
@@ -22,10 +22,11 @@ use TypeLang\Type\TypeNode;
  *  //                              ^^^^^   the default
  * ```
  */
-final class TemplateParameterNode extends Node
+final class TemplateParameterNode extends TemplateNode
 {
     /**
      * @param int<0, max> $offset
+     * @throws \InvalidArgumentException in case of the upper bound is not an upper one or the lower bound is not a lower one
      */
     public function __construct(
         public Identifier $name,
@@ -35,14 +36,14 @@ final class TemplateParameterNode extends Node
          *
          * The argument is to be a subtype of it.
          */
-        public ?TemplateBoundEdgeNode $upper = null,
+        public ?TemplateBoundNode $upper = null,
         /**
          * The end the parameter is bounded at from below, written with
          * a `super`.
          *
          * The argument is to be a supertype of it.
          */
-        public ?TemplateBoundEdgeNode $lower = null,
+        public ?TemplateBoundNode $lower = null,
         /**
          * The type the parameter takes when no argument is passed, written
          * with an `=`.
@@ -51,8 +52,21 @@ final class TemplateParameterNode extends Node
          * a default says what it becomes when left unsaid.
          */
         public ?TypeNode $default = null,
+        /**
+         * Declaration-site variance of the parameter, or {@see null} in case of
+         * it carries none, which makes the parameter invariant.
+         */
+        public ?VarianceNode $variance = null,
         int $offset = 0,
     ) {
+        if ($upper !== null && $upper->kind !== BoundKind::Upper) {
+            throw new \InvalidArgumentException('The upper bound of a template parameter must be an upper one');
+        }
+
+        if ($lower !== null && $lower->kind !== BoundKind::Lower) {
+            throw new \InvalidArgumentException('The lower bound of a template parameter must be a lower one');
+        }
+
         parent::__construct($offset);
     }
 }

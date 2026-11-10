@@ -7,44 +7,43 @@ namespace TypeLang\Type\Tests\Shape;
 use PHPUnit\Framework\Attributes\Test;
 use TypeLang\Type\Name;
 use TypeLang\Type\NamedTypeNode;
+use TypeLang\Type\Shape\ComplexFieldNode;
+use TypeLang\Type\Shape\ExplicitFieldNode;
 use TypeLang\Type\Shape\ImplicitFieldNode;
+use TypeLang\Type\Shape\NamedFieldNode;
+use TypeLang\Type\Shape\ScalarFieldNode;
 use TypeLang\Type\Tests\TestCase;
 
 final class ImplicitFieldNodeTest extends TestCase
 {
     #[Test]
-    public function constructorStoresType(): void
+    public function typeAndOffsetAreStored(): void
     {
-        $type = new NamedTypeNode(Name::createFromString('string'));
-        $node = new ImplicitFieldNode($type);
+        $type = new NamedTypeNode(new Name('int'));
+        $field = new ImplicitFieldNode($type, 5);
 
-        self::assertSame($type, $node->type);
+        self::assertSame($type, $field->type);
+        self::assertSame(5, $field->offset);
     }
 
     #[Test]
-    public function optionalDefaultsToFalse(): void
+    public function fieldWithNoKeyCannotBeOptional(): void
     {
-        $node = new ImplicitFieldNode(new NamedTypeNode(Name::createFromString('int')));
-
-        self::assertFalse($node->isOptional);
+        self::assertFalse(\property_exists(ImplicitFieldNode::class, 'isOptional'));
     }
 
     #[Test]
-    public function constructorStoresOptionalFlag(): void
+    public function fieldWithAKeyCanBeOptional(): void
     {
-        $node = new ImplicitFieldNode(
-            new NamedTypeNode(Name::createFromString('int')),
-            true,
-        );
+        $classes = [
+            ExplicitFieldNode::class,
+            NamedFieldNode::class,
+            ScalarFieldNode::class,
+            ComplexFieldNode::class,
+        ];
 
-        self::assertTrue($node->isOptional);
-    }
-
-    #[Test]
-    public function defaultOffsetIsZero(): void
-    {
-        $node = new ImplicitFieldNode(new NamedTypeNode(Name::createFromString('int')));
-
-        self::assertSame(0, $node->offset);
+        foreach ($classes as $class) {
+            self::assertTrue(\property_exists($class, 'isOptional'), $class);
+        }
     }
 }

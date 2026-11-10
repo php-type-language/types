@@ -7,62 +7,29 @@ namespace TypeLang\Type\Tests;
 use PHPUnit\Framework\Attributes\Test;
 use TypeLang\Type\Name;
 use TypeLang\Type\NamedTypeNode;
-use TypeLang\Type\Shape\FieldsListNode;
-use TypeLang\Type\Template\TemplateArgumentListNode;
-use TypeLang\Type\Template\TemplateArgumentNode;
+use TypeLang\Type\NamespaceName;
+use TypeLang\Type\NamespaceName\NamespaceKind;
 
 final class NamedTypeNodeTest extends TestCase
 {
     #[Test]
-    public function constructorStoresName(): void
+    public function constructorKeepsTheNameAndTheOffset(): void
     {
-        $name = Name::createFromString('int');
-        $node = new NamedTypeNode($name);
+        $node = new NamedTypeNode(new Name('Name', new NamespaceName('Type', NamespaceKind::FullyQualified), 7), offset: 7);
 
-        self::assertSame($name, $node->name);
-    }
-
-    #[Test]
-    public function templateArgumentsDefaultToNull(): void
-    {
-        $node = new NamedTypeNode(Name::createFromString('array'));
-
+        self::assertSame('\Type\Name', $node->name->toString());
+        self::assertSame(7, $node->offset);
+        self::assertSame(7, $node->name->offset);
         self::assertNull($node->arguments);
-    }
-
-    #[Test]
-    public function fieldsDefaultToNull(): void
-    {
-        $node = new NamedTypeNode(Name::createFromString('array'));
-
         self::assertNull($node->fields);
     }
 
     #[Test]
-    public function constructorStoresTemplateArguments(): void
+    public function emptyNameIsRejected(): void
     {
-        $args = new TemplateArgumentListNode([
-            new TemplateArgumentNode(new NamedTypeNode(Name::createFromString('int'))),
-        ]);
-        $node = new NamedTypeNode(Name::createFromString('array'), $args);
+        $this->expectException(\InvalidArgumentException::class);
 
-        self::assertSame($args, $node->arguments);
-    }
-
-    #[Test]
-    public function constructorStoresFields(): void
-    {
-        $fields = new FieldsListNode();
-        $node = new NamedTypeNode(Name::createFromString('array'), null, $fields);
-
-        self::assertSame($fields, $node->fields);
-    }
-
-    #[Test]
-    public function defaultOffsetIsZero(): void
-    {
-        $node = new NamedTypeNode(Name::createFromString('string'));
-
-        self::assertSame(0, $node->offset);
+        // @phpstan-ignore-next-line : An empty string is what the test passes on purpose
+        new NamedTypeNode(new Name(''));
     }
 }

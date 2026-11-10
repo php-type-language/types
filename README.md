@@ -39,75 +39,37 @@ composer require type-lang/types
 
 ## Usage
 
-Every node extends the abstract `Node` class and exposes an `$offset` (byte
-offset of the token in the original source). You usually get nodes from the
-parser, but they can also be constructed by hand.
-
-### Identifiers and Names
-
-```php
-use TypeLang\Type\Identifier;
-use TypeLang\Type\Name;
-
-$id = Identifier::createFromString('non-empty-string');
-$id->value;     // 'non-empty-string'
-$id->isVirtual; // true  (contains "-", e.g. "array-key", "positive-int")
-$id->isBuiltin; // false (e.g. "int", "bool", "null")
-$id->isSpecial; // false (e.g. "self", "static", "parent")
-
-$name = Name::createFromString('\TypeLang\Type\Node');
-$name->isFullyQualified; // true
-$name->first->value;     // 'TypeLang'
-$name->last->value;      // 'Node'
-```
-
-### Building Type Nodes
+A type is a tree of typed nodes instead of a string, so tools can inspect and
+change it without parsing text. You usually get the tree from the parser, but
+it can be built by hand as well. Every node also keeps the `$offset` of its
+token in the source.
 
 ```php
-use TypeLang\Type\Name;
-use TypeLang\Type\NamedTypeNode;
-use TypeLang\Type\NullableTypeNode;
-use TypeLang\Type\UnionTypeNode;
-use TypeLang\Type\TemplateArgumentListNode;
-use TypeLang\Type\TemplateArgumentNode;
+// Example<string, int, *>|null
+$type = new UnionTypeNode([
+    new NamedTypeNode(
+        name: new Name('Example'),
+        arguments: new TemplateListNode([
+            new TypedTemplateArgumentNode(
+                new NamedTypeNode(new Name('string')),
+            ),
+            new TypedTemplateArgumentNode(
+                new NamedTypeNode(new Name('int')),
+            ),
+            new WildcardTemplateArgumentNode()
+        ]),
+    ),
+    new NullLiteralNode(),
+]);
 
-// int
-new NamedTypeNode(Name::createFromString('int'));
+// Read the tree
+$type[0]->name->value;                    // 'array'
+$type[0]->arguments[1]->value->name->value; // 'int'
 
-// ?string
-new NullableTypeNode(new NamedTypeNode(Name::createFromString('string')));
-
-// int|string|null  (nested unions of the same kind are flattened)
-new UnionTypeNode(
-    new NamedTypeNode(Name::createFromString('int')),
-    new NamedTypeNode(Name::createFromString('string')),
-    new NamedTypeNode(Name::createFromString('null')),
-);
-
-// array<string, int>
-new NamedTypeNode(
-    name: Name::createFromString('array'),
-    arguments: new TemplateArgumentListNode([
-        new TemplateArgumentNode(new NamedTypeNode(Name::createFromString('string'))),
-        new TemplateArgumentNode(new NamedTypeNode(Name::createFromString('int'))),
-    ]),
-);
+// Change it: the tree is mutable, names and literals are immutable values
+$type[0]->name = new Name('iterable');
 ```
 
-### Node Lists
-
-All list containers (shape fields, template arguments, callable parameters, ...)
-extend `NodeList` and implement `Countable`, `ArrayAccess` and `IteratorAggregate`:
-
-```php
-count($list);   // number of items
-$list[0];       // item by offset
-$list->first;   // first item
-$list->last;    // last item
-foreach ($list as $item) { /* ... */ }
-```
-
-The package covers the full type grammar — unions and intersections, callables,
-conditional (ternary) expressions, class-constant masks, literals and shape
-fields. See the [documentation](https://typelang.dev) for the complete
-node reference.
+The package covers the full type grammar: unions and intersections, generics,
+shapes, callables, conditional types, class constants and their masks, and
+literals. See the [documentation](https://typelang.dev) for the node reference.

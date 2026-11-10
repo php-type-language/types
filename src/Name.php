@@ -4,397 +4,217 @@ declare(strict_types=1);
 
 namespace TypeLang\Type;
 
+use TypeLang\Type\NamespaceName\NamespaceKind;
+
 /**
- * A name, that is, the identifiers ({@see Identifier}) it is written of and the
- * namespace separators between them.
+ * A name: the namespace it begins with and the word it ends in.
  *
  * ```
  *  Some\Any
- *  ^^^^ ^^^ a relative name of two parts
+ *  ^^^^     the namespace
+ *       ^^^ the word
  *
  *  \Some\Any
- *  ^         a fully qualified name begins in a separator
+ *  ^^^^^     a fully qualified namespace begins in a separator
+ *
+ *  \Any
+ *  ^    the root namespace
+ *
+ *  non-empty-string
+ *  ^^^^^^^^^^^^^^^^ a single word, there is no namespace
  * ```
  *
- * @phpstan-consistent-constructor
- *
- * @template-implements \IteratorAggregate<array-key, Identifier>
+ * @template-implements \IteratorAggregate<int<0, max>, non-empty-string>
+ * @template-implements \ArrayAccess<int<0, max>, non-empty-string>
  */
-final class Name extends Node implements \IteratorAggregate, \Countable, \Stringable
+final class Name extends Node implements
+    \IteratorAggregate,
+    \ArrayAccess,
+    \Stringable,
+    \Countable
 {
     /**
      * @var non-empty-string
      */
-    private const NAMESPACE_DELIMITER = '\\';
-
-    public const IS_FULLY_QUALIFIED_DEFAULT_VALUE = false;
+    private const DELIMITER = NamespaceName::DELIMITER;
 
     /**
-     * The identifiers a name is written of.
+     * @var non-empty-array<non-empty-string, true>
+     */
+    private const SPECIAL_CLASS_NAME = [
+        'self' => true,
+        'parent' => true,
+        'static' => true,
+    ];
+
+    /**
+     * @var non-empty-list<non-empty-string>
      *
-     * @var non-empty-list<Identifier>
+     * @phpstan-ignore-next-line : PHPStan does not support lazy init
      */
-    public readonly array $parts;
+    private readonly array $parts;
 
     /**
-     * The first of the {@see $parts}, which is the one an alias is resolved by.
-     */
-    public readonly Identifier $first;
-
-    /**
-     * The last of the {@see $parts}, which is the short name of a class.
-     */
-    public readonly Identifier $last;
-
-    /**
-     * @param iterable<array-key, Identifier> $parts
      * @param int<0, max> $offset
-     * @throws \InvalidArgumentException in case of parts are empty or contain
-     *         something else than an {@see Identifier}
+     * @throws \InvalidArgumentException in case of the value is empty or has
+     *         a separator
      */
     public function __construct(
-        iterable $parts,
         /**
-         * Whether a name is written with the leading separator that says it
-         * is to be read from the root and not from wherever it stands.
+         * The last word of the name, it has no separators.
          *
-         * ```
-         *  Some\Any   // false
-         *  \Some\Any  // true
-         * ```
+         * @var non-empty-string
          */
-        public readonly bool $isFullyQualified = self::IS_FULLY_QUALIFIED_DEFAULT_VALUE,
+        public readonly string $value,
+        /**
+         * The namespace the word belongs to, or {@see null} in case of the
+         * name is written with none.
+         */
+        public readonly ?NamespaceName $namespace = null,
         int $offset = 0,
     ) {
-        $this->parts = self::formatNameParts($parts);
-
-        $this->first = $this->parts[0];
-        $this->last = $this->parts[\count($this->parts) - 1];
+        if ($value === '' || \str_contains($value, NamespaceName::DELIMITER)) {
+            throw new \InvalidArgumentException('Name must be a non-empty word with no separators');
+        }
 
         parent::__construct($offset);
     }
 
     /**
-     * @param iterable<mixed, Identifier> $parts
-     * @return non-empty-list<Identifier>
-     */
-    private static function formatNameParts(iterable $parts): array
-    {
-        $parts = match (true) {
-            $parts instanceof \Traversable => \iterator_to_array($parts, false),
-            \array_is_list($parts) => $parts,
-            default => \array_values($parts),
-        };
-
-        if ($parts === []) {
-            throw new \InvalidArgumentException('Name parts count can not be empty');
-        }
-
-        return $parts;
-    }
-
-    /**
-     * @param int<0, max> $offset
-     */
-    public static function createFromString(string|\Stringable $name, int $offset = 0): self
-    {
-        $name = (string) $name;
-        $parts = [];
-
-        foreach (\explode(self::NAMESPACE_DELIMITER, $name) as $segment) {
-            if ($segment === '') {
-                continue;
-            }
-
-            $parts[] = Identifier::createFromString($segment);
-        }
-
-        return new self($parts, \str_starts_with($name, self::NAMESPACE_DELIMITER), $offset);
-    }
-
-    /**
-     * Gets the first segment of a name
-     */
-    public function getFirstPart(): Identifier
-    {
-        return $this->first;
-    }
-
-    /**
-     * Gets the first segment of a name as a string
+     * Whether a name is written with the leading separator that says it
+     * is to be read from the root and not from wherever it stands.
      *
-     * @return non-empty-string
-     */
-    public function getFirstPartAsString(): string
-    {
-        return $this->first->toString();
-    }
-
-    /**
-     * Gets the first segment of a name as a lowercase string
+     * ```
+     *  Some\Any       // false
+     *  \Some\Any      // true
+     *  \Any           // true
+     *  namespace\Any  // false
+     * ```
      *
-     * @return non-empty-lowercase-string
+     * @api
      */
-    public function getFirstPartAsLowerString(): string
+    public function isFullyQualified(): bool
     {
-        return $this->first->toLowerString();
+        return $this->namespace?->kind === NamespaceKind::FullyQualified;
     }
 
     /**
-     * Gets the last segment of a name
-     */
-    public function getLastPart(): Identifier
-    {
-        return $this->last;
-    }
-
-    /**
-     * Gets the last segment of a name as a string
+     * Whether the name is made of a single word, the leading separator and
+     * the `namespace` keyword are not counted.
      *
-     * @return non-empty-string
-     */
-    public function getLastPartAsString(): string
-    {
-        return $this->last->toString();
-    }
-
-    /**
-     * Gets the last segment of a name as a lowercase string
-     *
-     * @return non-empty-lowercase-string
-     */
-    public function getLastPartAsLowerString(): string
-    {
-        return $this->last->toLowerString();
-    }
-
-    /**
-     * Gets whether the name is simple.
+     * @api
      */
     public function isSimple(): bool
     {
-        return \count($this->parts) === 1;
+        return ($this->namespace->value ?? '') === '';
     }
 
     /**
-     * Gets {@see true} in case of name contains special class reference.
+     * Whether the name is the name of a "virtual" type, which cannot be
+     * defined in PHP.
+     *
+     * - `SomeClass`, `false` - not virtual.
+     * - `non-empty-array`, `empty-string` - virtual.
+     *
+     * @api
+     */
+    public function isVirtual(): bool
+    {
+        return \str_contains($this->toString(), '-');
+    }
+
+    /**
+     * Whether the name is one of `self`, `parent` and `static`.
+     *
+     * @api
      */
     public function isSpecial(): bool
     {
-        return $this->isSimple() && $this->getFirstPart()->isSpecial();
+        return $this->namespace === null
+            && isset(self::SPECIAL_CLASS_NAME[\strtolower($this->value)]);
     }
 
     /**
-     * Gets {@see true} in case of name contains builtin type name.
-     */
-    public function isBuiltin(): bool
-    {
-        return $this->isSimple() && $this->getFirstPart()->isBuiltin();
-    }
-
-    /**
-     * Gets {@see true} in case of name is fully qualified.
+     * Gets the segments of the name without the separators.
      *
-     * @deprecated use the {@see $isFullyQualified} property instead
-     */
-    public function isFullQualified(): bool
-    {
-        return $this->isFullyQualified;
-    }
-
-    /**
-     * @param int<0, max> $offset
-     * @param int<0, max>|null $length
-     */
-    public function slice(int $offset = 0, ?int $length = null): self
-    {
-        return new self(
-            parts: \array_slice($this->parts, $offset, $length),
-            isFullyQualified: $this->isFullyQualified,
-        );
-    }
-
-    /**
-     * Appends the passed {@see Name} to the existing one at the end.
-     *
-     * ```php
-     *  $name = new Name('Some\Any');
-     *
-     *  echo $name->withAdded(new Name('Test\Class'));
-     *  > "Some\Any\Test\Class"
-     *
-     *  echo $name->withAdded(new Name('Any\Class'));
-     *  > "Some\Any\Any\Class"
      * ```
-     */
-    public function withAdded(self $name): self
-    {
-        return new self([
-            ...$this->parts,
-            ...$name->parts,
-        ], $this->isFullyQualified);
-    }
-
-    /**
-     * Combines two names into one (in case the last one is an alias).
-     *
-     * ```php
-     *   $name = new Name('Some\Any');
-     *
-     *   echo $name->mergeWith(new Name('Test\Class'));
-     *   > "Some\Any\Class"
-     *
-     *   echo $name->mergeWith(new Name('Any\Class'));
-     *   > "Some\Any\Class"
+     *  \Some\Any  // ['Some', 'Any']
      * ```
      *
-     * Real world use case:
-     * ```php
-     *  // use TypeLang\Parser\Node;
-     *  // echo Node::class;
+     * @api
      *
-     *  $name = new Name('TypeLang\Parser\Node');
-     *  echo $name->mergeWith(new Name('Node'));
-     *
-     *  // > TypeLang\Parser\Node
-     * ```
-     *
-     * Or aliased:
-     * ```php
-     *  // use TypeLang\Parser\Exception as Error;
-     *  // echo Error\SemanticException::class;
-     *
-     *  $name = new Name('TypeLang\Parser\Exception');
-     *  echo $name->mergeWith(new Name('Error\SemanticException'));
-     *
-     *  // > TypeLang\Parser\Exception\SemanticException
-     * ```
-     */
-    public function mergeWith(self $name): self
-    {
-        return new self([
-            ...$this->parts,
-            ...\array_slice($name->parts, 1),
-        ], $this->isFullyQualified);
-    }
-
-    /**
-     * Convert a name to a full qualified name instance.
-     */
-    public function toFullQualified(): self
-    {
-        if ($this->isFullyQualified) {
-            return clone $this;
-        }
-
-        return new self($this->parts, true);
-    }
-
-    /**
-     * Convert name to unqualified name instance.
-     */
-    public function toUnqualified(): self
-    {
-        if ($this->isFullyQualified) {
-            return new self($this->parts, false);
-        }
-
-        return clone $this;
-    }
-
-    /**
-     * @return non-empty-list<Identifier>
+     * @return non-empty-list<non-empty-string>
      */
     public function toArray(): array
     {
-        return $this->parts;
-    }
-
-    /**
-     * @deprecated use the {@see $parts} property instead
-     *
-     * @return non-empty-list<Identifier>
-     */
-    public function getParts(): array
-    {
-        return $this->parts;
-    }
-
-    /**
-     * @return non-empty-list<non-empty-string>
-     */
-    public function toArrayStrings(): array
-    {
-        $result = [];
-
-        foreach ($this->parts as $identifier) {
-            $result[] = $identifier->toString();
+        if (isset($this->parts)) {
+            return $this->parts;
         }
 
-        return $result;
+        $parts = $this->namespace?->toArray() ?? [];
+        $parts[] = $this->value;
+
+        /** @phpstan-ignore-next-line : PHPStan does not support lazy initialization */
+        return $this->parts = $parts;
     }
 
     /**
-     * @deprecated use the {@see toArrayStrings()} method instead
+     * Gets the first segment of the name.
      *
-     * @return non-empty-list<non-empty-string>
+     * ```
+     *  Some\Any  // Some
+     * ```
+     *
+     * @api
+     *
+     * @return non-empty-string
      */
-    public function getPartsAsString(): array
+    public function first(): string
     {
-        return $this->toArrayStrings();
+        return $this->toArray()[0];
     }
 
     /**
-     * @return non-empty-list<non-empty-string>
+     * Gets the last segment of the name.
+     *
+     * ```
+     *  Some\Any  // Any
+     * ```
+     *
+     * @api
+     *
+     * @return non-empty-string
      */
-    public function toArrayLowercaseStrings(): array
+    public function last(): string
     {
-        $result = [];
-
-        foreach ($this->parts as $identifier) {
-            $result[] = $identifier->toLowerString();
-        }
-
-        return $result;
+        return $this->value;
     }
 
     /**
-     * Returns a name as a string.
+     * Returns the name as it is written, with the leading separator if it has
+     * one.
+     *
+     * @api
      *
      * @return non-empty-string
      */
     public function toString(): string
     {
-        if ($this->isFullyQualified) {
-            return $this->toFullQualifiedString();
+        if ($this->namespace === null) {
+            return $this->value;
         }
 
-        return $this->toUnqualifiedString();
+        if ($this->namespace->isRoot()) {
+            return self::DELIMITER . $this->value;
+        }
+
+        return $this->namespace->toString() . self::DELIMITER . $this->value;
     }
 
     /**
-     * Returns a name as an unqualified (without the initial `\\`) string.
+     * Returns the name as it is written, in lower case.
      *
-     * @return non-empty-string
-     */
-    public function toUnqualifiedString(): string
-    {
-        return \implode(self::NAMESPACE_DELIMITER, $this->toArrayStrings());
-    }
-
-    /**
-     * Returns a name as full qualified (with the initial `\\`) string.
-     *
-     * @return non-empty-string
-     */
-    public function toFullQualifiedString(): string
-    {
-        return self::NAMESPACE_DELIMITER
-            . \implode(self::NAMESPACE_DELIMITER, $this->toArrayStrings());
-    }
-
-    /**
-     * Returns lowercased name as string.
+     * @api
      *
      * @return non-empty-lowercase-string
      */
@@ -404,71 +224,59 @@ final class Name extends Node implements \IteratorAggregate, \Countable, \String
     }
 
     /**
-     * Returns a lowercased name as unqualified (without the initial `\\`) string.
+     * Iterates the segments of the name.
      *
-     * @return non-empty-string
-     */
-    public function toUnqualifiedLowerString(): string
-    {
-        return \strtolower($this->toUnqualifiedString());
-    }
-
-    /**
-     * Returns a lowercased name as full qualified (with the initial `\\`) string.
-     *
-     * @return non-empty-string
-     */
-    public function toFullQualifiedLowerString(): string
-    {
-        return \strtolower($this->toFullQualifiedString());
-    }
-
-    /**
-     * @return \Traversable<array-key, Identifier>
+     * @return \Traversable<int<0, max>, non-empty-string>
      */
     public function getIterator(): \Traversable
     {
-        return new \ArrayIterator($this->parts);
+        return new \ArrayIterator($this->toArray());
     }
 
     /**
+     * Gets the count of the segments of the name.
+     *
      * @return int<1, max>
      */
     public function count(): int
     {
-        return \count($this->parts);
+        return \count($this->toArray());
     }
 
-    /**
-     * @return non-empty-string
-     */
+    public function offsetExists(mixed $offset): bool
+    {
+        assert(\is_int($offset) && $offset >= 0, new \InvalidArgumentException('Invalid name segment offset'));
+
+        $parts = $this->toArray();
+
+        return isset($parts[$offset]);
+    }
+
+    public function offsetGet(mixed $offset): string
+    {
+        assert(\is_int($offset) && $offset >= 0, new \InvalidArgumentException('Invalid name segment offset'));
+
+        $parts = $this->toArray();
+
+        return $parts[$offset] ?? throw new \OutOfBoundsException('Invalid name segment offset');
+    }
+
+    public function offsetSet(mixed $offset, mixed $value): void
+    {
+        assert(\is_int($offset) && $offset >= 0, new \InvalidArgumentException('Invalid name segment offset'));
+
+        throw new \LogicException('Cannot modify name parts');
+    }
+
+    public function offsetUnset(mixed $offset): void
+    {
+        assert(\is_int($offset) && $offset >= 0, new \InvalidArgumentException('Invalid name segment offset'));
+
+        throw new \LogicException('Cannot modify name parts');
+    }
+
     public function __toString(): string
     {
         return $this->toString();
-    }
-
-    /**
-     * @return array{non-empty-list<Identifier>, int<0, max>, bool}
-     */
-    public function __serialize(): array
-    {
-        return [$this->parts, $this->offset, $this->isFullyQualified];
-    }
-
-    /**
-     * @param array{0?: non-empty-list<Identifier>, 1?: int<0, max>, 2?: bool} $data
-     * @throws \UnexpectedValueException
-     */
-    public function __unserialize(array $data): void
-    {
-        $this->parts = $parts = $data[0] ?? throw new \UnexpectedValueException(
-            message: 'Unable to unserialize Name segments',
-        );
-
-        $this->first = \reset($parts);
-        $this->last = \end($parts);
-
-        $this->offset = $data[1] ?? 0;
-        $this->isFullyQualified = $data[2] ?? self::IS_FULLY_QUALIFIED_DEFAULT_VALUE;
     }
 }

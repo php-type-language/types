@@ -14,56 +14,26 @@ use TypeLang\Type\Tests\TestCase;
 final class NamedFieldNodeTest extends TestCase
 {
     #[Test]
-    public function constructorStoresKeyAndType(): void
+    public function constructorKeepsTheKeyTheTypeAndTheOffset(): void
     {
-        $key = new Identifier('name');
-        $type = new NamedTypeNode(Name::createFromString('string'));
-        $node = new NamedFieldNode($key, $type);
+        $key = new Identifier('name', offset: 3);
+        $type = new NamedTypeNode(new Name('int'));
 
-        self::assertSame($key, $node->key);
-        self::assertSame($type, $node->type);
+        $field = new NamedFieldNode($key, $type, true, 3);
+
+        self::assertSame($key, $field->key);
+        self::assertSame('name', $field->key->toString());
+        self::assertSame($type, $field->type);
+        self::assertTrue($field->isOptional);
+        self::assertSame(3, $field->offset);
     }
 
     #[Test]
-    public function indexReturnsKeyValue(): void
+    public function fieldIsRequiredByDefault(): void
     {
-        $key = new Identifier('myField');
-        $node = new NamedFieldNode($key, new NamedTypeNode(Name::createFromString('int')));
+        $field = new NamedFieldNode(new Identifier('name'), new NamedTypeNode(new Name('int')));
 
-        self::assertSame('myField', $node->getIndex());
-    }
-
-    #[Test]
-    public function optionalDefaultsToFalse(): void
-    {
-        $node = new NamedFieldNode(
-            new Identifier('field'),
-            new NamedTypeNode(Name::createFromString('string')),
-        );
-
-        self::assertFalse($node->isOptional);
-    }
-
-    #[Test]
-    public function constructorStoresOptionalFlag(): void
-    {
-        $node = new NamedFieldNode(
-            new Identifier('field'),
-            new NamedTypeNode(Name::createFromString('string')),
-            true,
-        );
-
-        self::assertTrue($node->isOptional);
-    }
-
-    #[Test]
-    public function defaultOffsetIsZero(): void
-    {
-        $node = new NamedFieldNode(
-            new Identifier('f'),
-            new NamedTypeNode(Name::createFromString('int')),
-        );
-
-        self::assertSame(0, $node->offset);
+        self::assertFalse($field->isOptional);
+        self::assertSame(0, $field->offset);
     }
 }
