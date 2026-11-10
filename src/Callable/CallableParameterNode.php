@@ -53,7 +53,7 @@ final class CallableParameterNode extends Node
          * It is written as an `&` behind the type, like the one of
          * a `callable(int &$byRef)`.
          */
-        public bool $isOutput = false,
+        public bool $isByReference = false,
         /**
          * Whether a parameter takes every argument left, written as a `...`:
          * A `callable(string ...$rest)`.
@@ -85,5 +85,20 @@ final class CallableParameterNode extends Node
         }
 
         parent::__construct($offset);
+    }
+
+    public function __clone()
+    {
+        if ($this->type !== null) {
+            $this->type = clone $this->type;
+        }
+
+        if ($this->name !== null) {
+            $this->name = clone $this->name;
+        }
+
+        if ($this->default !== null) {
+            $this->default = clone $this->default;
+        }
     }
 }

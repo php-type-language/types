@@ -29,4 +29,18 @@ final class TemplateParameterListNodeTest extends TestCase
 
         unset($list[0]);
     }
+
+    #[Test]
+    public function rejectedRemovalLeavesTheListAsItIs(): void
+    {
+        $list = new TemplateParameterListNode([$parameter = new TemplateParameterNode(new Identifier('T'))]);
+
+        try {
+            unset($list[0]);
+
+            self::fail('The parameter must not be removed');
+        } catch (\UnderflowException) {
+            self::assertSame([$parameter], $list->children);
+        }
+    }
 }

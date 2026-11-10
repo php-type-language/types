@@ -10,11 +10,10 @@ use TypeLang\Type\Callable\CallableParameterListNode;
 use TypeLang\Type\Callable\CallableParameterNode;
 use TypeLang\Type\Callable\CallableTypeNode;
 use TypeLang\Type\Callable\DefaultValueNode;
-use TypeLang\Type\Constant\ClassConstMaskTypeNode;
-use TypeLang\Type\Constant\ClassConstTypeNode;
-use TypeLang\Type\Condition\EqualConditionNode;
-use TypeLang\Type\Condition\NotEqualConditionNode;
+use TypeLang\Type\Condition\ConditionNode;
+use TypeLang\Type\Condition\ConditionNode\ConditionKind;
 use TypeLang\Type\Constant\ConstMaskTypeNode;
+use TypeLang\Type\Constant\ConstTypeNode;
 use TypeLang\Type\Identifier;
 use TypeLang\Type\Name;
 use TypeLang\Type\LogicalTypeNode\IntersectionTypeNode;
@@ -24,6 +23,7 @@ use TypeLang\Type\Literal\IntLiteralNode;
 use TypeLang\Type\Literal\NullLiteralNode;
 use TypeLang\Type\Literal\StringLiteralNode;
 use TypeLang\Type\ThisTypeNode;
+use TypeLang\Type\TypeOffsetAccessTypeNode;
 use TypeLang\Type\VariableNode;
 use TypeLang\Type\Constant\MaskNode;
 use TypeLang\Type\NamedTypeNode;
@@ -40,11 +40,9 @@ use TypeLang\Type\Template\VarianceNode;
 use TypeLang\Type\Template\VarianceNode\VarianceKind;
 use TypeLang\Type\Template\WildcardTemplateArgumentNode;
 use TypeLang\Type\Template\TemplateBoundNode;
-use TypeLang\Type\Template\TemplateBoundNode\BoundKind;
 use TypeLang\Type\Template\TemplateParameterListNode;
 use TypeLang\Type\Template\TemplateParameterNode;
 use TypeLang\Type\Condition\ConditionalTypeNode;
-use TypeLang\Type\WrappingTypeNode\TypeOffsetAccessTypeNode;
 use TypeLang\Type\WrappingTypeNode\TypesListTypeNode;
 use TypeLang\Type\LogicalTypeNode\UnionTypeNode;
 use TypeLang\Type\Constant\MaskNode\WildcardMaskNode;
@@ -68,12 +66,11 @@ final class NodeTest extends TestCase
     public static function nodesDataProvider(): iterable
     {
         yield CallableTypeNode::class => [new CallableTypeNode(new Name('callable'))];
-        yield ClassConstMaskTypeNode::class => [new ClassConstMaskTypeNode(new Name('Example'))];
-        yield ClassConstTypeNode::class => [
-            new ClassConstTypeNode(new Name('Example'), new Identifier('CONST')),
+        yield ConstTypeNode::class => [
+            new ConstTypeNode(new Name('Example'), new Identifier('CONST')),
         ];
         yield ConstMaskTypeNode::class => [
-            new ConstMaskTypeNode(new MaskNode([new Identifier('CONST'), new WildcardMaskNode()])),
+            new ConstMaskTypeNode(null, new MaskNode([new Identifier('CONST'), new WildcardMaskNode()])),
         ];
         yield Identifier::class => [new Identifier('Example')];
         yield Name::class => [new Name('Example')];
@@ -83,7 +80,7 @@ final class NodeTest extends TestCase
         yield NullableTypeNode::class => [new NullableTypeNode(self::type())];
         yield ConditionalTypeNode::class => [
             new ConditionalTypeNode(
-                new EqualConditionNode(self::type('A'), self::type('B')),
+                new ConditionNode(self::type('A'), self::type('B'), ConditionKind::Equal),
                 self::type('C'),
                 self::type('D'),
             ),
@@ -97,8 +94,7 @@ final class NodeTest extends TestCase
         yield CallableParameterNode::class => [new CallableParameterNode(self::type())];
         yield DefaultValueNode::class => [new DefaultValueNode()];
 
-        yield EqualConditionNode::class => [new EqualConditionNode(self::type('A'), self::type('B'))];
-        yield NotEqualConditionNode::class => [new NotEqualConditionNode(self::type('A'), self::type('B'))];
+        yield ConditionNode::class => [new ConditionNode(self::type('A'), self::type('B'), ConditionKind::Equal)];
 
         yield BoolLiteralNode::class => [new BoolLiteralNode(true)];
         yield FloatLiteralNode::class => [new FloatLiteralNode(0.1)];
@@ -110,7 +106,7 @@ final class NodeTest extends TestCase
 
         yield ComplexFieldNode::class => [
             new ComplexFieldNode(
-                new ClassConstTypeNode(new Name('Example'), new Identifier('CONST')),
+                new ConstTypeNode(new Name('Example'), new Identifier('CONST')),
                 self::type(),
             ),
         ];
@@ -125,7 +121,7 @@ final class NodeTest extends TestCase
         yield TypedTemplateArgumentNode::class => [new TypedTemplateArgumentNode(self::type())];
         yield WildcardTemplateArgumentNode::class => [new WildcardTemplateArgumentNode()];
         yield VarianceNode::class => [new VarianceNode(VarianceKind::Covariant)];
-        yield TemplateBoundNode::class => [new TemplateBoundNode(self::type(), BoundKind::Upper)];
+        yield TemplateBoundNode::class => [new TemplateBoundNode(self::type(), new Identifier('of'))];
         yield TemplateParameterListNode::class => [
             new TemplateParameterListNode([new TemplateParameterNode(new Identifier('T'))]),
         ];
@@ -159,14 +155,11 @@ final class NodeTest extends TestCase
         yield CallableTypeNode::class => [
             new CallableTypeNode(new Name('callable'), offset: 42),
         ];
-        yield ClassConstMaskTypeNode::class => [
-            new ClassConstMaskTypeNode(new Name('Example'), offset: 42),
-        ];
-        yield ClassConstTypeNode::class => [
-            new ClassConstTypeNode(new Name('Example'), new Identifier('CONST'), 42),
+        yield ConstTypeNode::class => [
+            new ConstTypeNode(new Name('Example'), new Identifier('CONST'), 42),
         ];
         yield ConstMaskTypeNode::class => [
-            new ConstMaskTypeNode(new MaskNode([new Identifier('CONST'), new WildcardMaskNode()]), offset: 42),
+            new ConstMaskTypeNode(null, new MaskNode([new Identifier('CONST'), new WildcardMaskNode()]), offset: 42),
         ];
         yield Identifier::class => [new Identifier('Example', 42)];
         yield Name::class => [new Name('Example', offset: 42)];
@@ -175,7 +168,7 @@ final class NodeTest extends TestCase
         yield NullableTypeNode::class => [new NullableTypeNode(self::type(), 42)];
         yield ConditionalTypeNode::class => [
             new ConditionalTypeNode(
-                new EqualConditionNode(self::type('A'), self::type('B')),
+                new ConditionNode(self::type('A'), self::type('B'), ConditionKind::Equal),
                 self::type('C'),
                 self::type('D'),
                 42,
@@ -191,9 +184,8 @@ final class NodeTest extends TestCase
         yield CallableParameterNode::class => [new CallableParameterNode(self::type(), offset: 42)];
         yield DefaultValueNode::class => [new DefaultValueNode(offset: 42)];
 
-        yield EqualConditionNode::class => [new EqualConditionNode(self::type('A'), self::type('B'), 42)];
-        yield NotEqualConditionNode::class => [
-            new NotEqualConditionNode(self::type('A'), self::type('B'), 42),
+        yield ConditionNode::class => [
+            new ConditionNode(self::type('A'), self::type('B'), ConditionKind::Equal, 42),
         ];
 
         yield BoolLiteralNode::class => [new BoolLiteralNode(true, offset: 42)];
@@ -206,7 +198,7 @@ final class NodeTest extends TestCase
 
         yield ComplexFieldNode::class => [
             new ComplexFieldNode(
-                new ClassConstTypeNode(new Name('Example'), new Identifier('CONST')),
+                new ConstTypeNode(new Name('Example'), new Identifier('CONST')),
                 self::type(),
                 offset: 42,
             ),
@@ -227,7 +219,7 @@ final class NodeTest extends TestCase
         yield WildcardTemplateArgumentNode::class => [new WildcardTemplateArgumentNode(42)];
         yield VarianceNode::class => [new VarianceNode(VarianceKind::Covariant, 42)];
         yield TemplateBoundNode::class => [
-            new TemplateBoundNode(self::type(), BoundKind::Upper, 42),
+            new TemplateBoundNode(self::type(), new Identifier('of'), 42),
         ];
         yield TemplateParameterListNode::class => [
             new TemplateParameterListNode([new TemplateParameterNode(new Identifier('T'))], 42),
